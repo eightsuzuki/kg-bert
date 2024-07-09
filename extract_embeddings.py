@@ -4,6 +4,11 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 from transformers import BertTokenizer, BertModel, BertConfig
+import logging
+
+# ログの設定
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # エンティティとリレーションの埋め込みを抽出する関数
 def get_embeddings(model, dataloader, device):
@@ -13,8 +18,10 @@ def get_embeddings(model, dataloader, device):
         for batch in dataloader:
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids = batch
-            outputs = model(input_ids, attention_mask=input_mask, token_type_ids=segment_ids)
-            embeddings.append(outputs.last_hidden_state[:, 0, :].cpu().numpy())  # [CLS] トークンのベクトルを使用
+            
+            # モデルの埋め込み層の出力を取得
+            embedding_output = model.embeddings(input_ids)
+            embeddings.append(embedding_output[:, 0, :].cpu().numpy()) 
     return np.concatenate(embeddings, axis=0)
 
 # データローダーを作成する関数
@@ -43,33 +50,48 @@ def main():
     parser.add_argument("--batch_size", default=32, type=int, help="Batch size for inference.")
     args = parser.parse_args()
 
+    logger.info("Using device: %s", "cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # モデルとトークナイザーのロード
+    logger.info("Loading model and tokenizer from %s", args.model_dir)
     config = BertConfig.from_pretrained(args.model_dir)
     model = BertModel.from_pretrained(args.model_dir, config=config)
     tokenizer = BertTokenizer.from_pretrained(args.model_dir)
     model.to(device)
+    logger.info("Model and tokenizer loaded successfully")
 
     # エンティティとリレーションのテキストをロード
+    logger.info("Loading entity and relation texts from %s", args.data_dir)
     entity_texts = load_text(os.path.join(args.data_dir, "entity2text.txt"))
     relation_texts = load_text(os.path.join(args.data_dir, "relation2text.txt"))
+    logger.info("Loaded %d entity texts and %d relation texts", len(entity_texts), len(relation_texts))
 
     # データローダーを作成
+    logger.info("Creating dataloaders")
     entity_dataloader = create_dataloader(entity_texts, tokenizer, args.max_seq_length, args.batch_size)
     relation_dataloader = create_dataloader(relation_texts, tokenizer, args.max_seq_length, args.batch_size)
+    logger.info("Dataloaders created successfully")
 
     # エンティティとリレーションの埋め込みを取得
+    logger.info("Extracting entity embeddings")
     entity_embeddings = get_embeddings(model, entity_dataloader, device)
+    logger.info("Entity embeddings extracted successfully, shape: %s", entity_embeddings.shape)
+
+    logger.info("Extracting relation embeddings")
     relation_embeddings = get_embeddings(model, relation_dataloader, device)
+    logger.info("Relation embeddings extracted successfully, shape: %s", relation_embeddings.shape)
 
     # 出力ディレクトリが存在しない場合は作成
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
+        logger.info("Created output directory %s", args.output_dir)
 
     # 埋め込みをファイルに保存
+    logger.info("Saving embeddings to %s", args.output_dir)
     np.save(os.path.join(args.output_dir, "entity_embedding.npy"), entity_embeddings)
     np.save(os.path.join(args.output_dir, "relation_embedding.npy"), relation_embeddings)
+    logger.info("Embeddings saved successfully")
 
 if __name__ == "__main__":
     main()

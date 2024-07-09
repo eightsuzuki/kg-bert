@@ -128,7 +128,13 @@ python3 run_bert_link_prediction.py
 3. **以下のコマンドを実行**：
 
 ```bash
-python extract_embeddings.py --data_dir ./data/WN18RR --model_dir ./output_WN18RR --max_seq_length 50 --batch_size 32
+python extract_embeddings.py \
+  --data_dir ./data/WN18RR \
+  --model_dir ./output_WN18RR \
+  --output_dir ./output_WN18RR/embedding \
+  --max_seq_length 50 \
+  --batch_size 32
+
 ```
 
 このコマンドは、`data_dir` と `model_dir` のパスを指定し、シーケンスの最大長とバッチサイズを設定します。スクリプトを実行すると、エンティティとリレーションの埋め込みがそれぞれ `entity_embedding.npy` と `relation_embedding.npy` として保存されます。
