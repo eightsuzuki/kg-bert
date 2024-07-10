@@ -19,9 +19,10 @@ def get_embeddings(model, dataloader, device):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids = batch
             
-            # モデルの埋め込み層の出力を取得
-            embedding_output = model.embeddings(input_ids)
-            embeddings.append(embedding_output[:, 0, :].cpu().numpy()) 
+            # モデルのエンコーダー層の出力を取得
+            outputs = model(input_ids, attention_mask=input_mask, token_type_ids=segment_ids)
+            last_hidden_state = outputs.last_hidden_state
+            embeddings.append(last_hidden_state[:, 0, :].cpu().numpy())  # [CLS]トークンの埋め込みを取得
     return np.concatenate(embeddings, axis=0)
 
 # データローダーを作成する関数
